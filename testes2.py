@@ -13,7 +13,7 @@ nlp = spacy.load('en_core_web_sm')
 
 #%%
 
-text = "Eloise and John are having a child. They are pretty happy about it. Martha and Julia, on the other side, don't seem to like the idea very much. It is still a surprise for them. Eloise, Lisa and Julia bought a gift to Marie, Alex, Oscar and John. They really loved the gift. For what hell Regina Soares stand for."
+text = "Eloise and John are having a child. They are pretty happy about it. Eloise and Julia, on the other side, don't seem to like the idea very much. It is still a surprise for them. Eloise, Lisa and Julia bought a gift to Marie, Alex, Oscar and John. They really loved the gift. For what hell Regina Soares stand for."
 #%%"""removemos as quebras de linha (\n)"""
 
 text = re.sub(r'\n', '', text)
@@ -214,13 +214,58 @@ def map_prons_to_last_phrase(prons, puncts):
 prons_to_phrase = map_prons_to_last_phrase(nlp_pron, nlp_punct)
 prons_to_phrase
 #%%
+import numpy as np
 
-def apply_metrics():
-    pass
+def proximity_penallity(groups):
+    max_val = max(get_idx_val(groups))    
+    mean_distance = np.array(
+        [
+            sum(
+                [
+                    noun[0]/max_val for noun in group
+                ])/len(group) 
+                for group in groups
+        ]
+    )
+    return 1 - mean_distance
 
-def proximity(groups):    
-    mean_distance = [sum([noun[0] for noun in group])/len(group) for group in groups]
-    return mean_distance
+def apply_metrics(prons_to_phrase):
+    new_dict = {}
+    for pronoun, vals in prons_to_phrase.items():
+        groups = vals[1]
+        new_dict[pronoun] = (groups, get_metrics(groups))
+    return new_dict 
+
+def get_metrics(groups):
+    metrics = np.array([1. for _ in groups])
+
+    if len(groups) > 1:
+        metrics -= proximity_penallity(groups)*0.8
+
+    tag_p = list()
+    for group in groups:
+        tag_p.append(tag_penallity(group))
+
+    metrics -= np.array(tag_p)*0.2
+
+    return metrics
+
+def tag_penallity(group):
+    score = 0.
+    for noun in group:
+        is_noun = len(re.findall(r"NN\w*", noun[1].tag_)) > 0
+        has_dependence_ok = noun[1].dep_ in ["nsubj", "conj"]
+        if is_noun:
+            score += .5
+        if has_dependence_ok:
+            score += .5
+    return (1 - score/len(group))
+
+
+def get_idx_val(groups):
+    return np.array(
+        [noun[0] for group in groups for noun in group]
+    )
 
 #%%
 def map_prons_to_nouns(prons, puncts):
