@@ -13,7 +13,7 @@ nlp = spacy.load('en_core_web_sm')
 
 #%%
 
-text = "Eloise and John are having a child. They are pretty happy about it. Martha, and Julia, on the other side, don't seem to like the idea very much. It is still a surprise for them. Eloise, Lisa and Julia bought a gift to Marie, Alex, Oscar and John. They really loved the gift. For what hell Regina Soares stand for. They."
+text = "Eloise and John are having a child. They are pretty happy about it. Martha and Julia, on the other side, don't seem to like the idea very much. It is still a surprise for them. Eloise, Lisa and Julia bought a gift to Marie, Alex, Oscar and John. They really loved the gift. For what hell Regina Soares stand for."
 #%%"""removemos as quebras de linha (\n)"""
 
 text = re.sub(r'\n', '', text)
@@ -101,42 +101,63 @@ def get_capital_words(phrase):
         i += 1
     
     return filtered_words
-                
-def get_capital_words_rev(phrase):
-    words = list(filter(
-            lambda term: term[1].text[0].isupper(),
-            enumerate(phrase)
-        ))
-    
+
+def filter_by_nome_composto(words):
     filtered_words = list()
 
     i = len(words)-1
     while i >= 0:
-        #j=-1
-        #flag=1
         if i == 0:
             filtered_words.append(words[i])
-            #i -= 1
             break
         if(words[i-1][0] == (words[i][0]-1)):
             i -= 1
         else:
             filtered_words.append(words[i])
             i -= 1
-            #do {
-            #    words[i-1]
-            #    j -= 1
-            #    if(v[i-j].index==(v[i].index-j)):
-            #        deleta v[i-1]
-            #    else:
-            #        flag=0
-            #} while(flag!=0)
-        #i -= 1
     filtered_words.reverse()
     return filtered_words
 
+def get_capital_words_rev(phrase):
+    words = list(filter(
+            lambda term: term[1].text[0].isupper(),
+            enumerate(phrase)
+        ))
 
+    words = filter_by_nome_composto(words)
 
+    grouped_words = list()
+
+    i = len(words)-1
+    while i >= 0:
+        group = list()
+        while True:
+            #print(i)
+            #print(phrase[words[i][0]])
+            #print(phrase[words[i][0]-1].text)
+            if phrase[words[i][0]-1].text=='and':
+                if phrase[words[i][0]-2].text[0].isupper():
+                    #print("Append AND ISUPPER")
+                    group.append(words[i])
+                    i -= 1
+                    continue
+            elif phrase[words[i][0]-1].text==',':
+                if phrase[words[i][0]-2].text[0].isupper():
+                    #print("Append , ISUPPER")
+                    group.append(words[i])
+                    i -= 1
+                    continue
+            else:
+                #print("APPEND AND BREAK")
+                group.append(words[i])
+                i-=1
+                break
+            if i < 0:
+                break
+        if len(group) > 1:
+            grouped_words.append(group)
+    
+    return grouped_words
 
 def get_words_dependence(phrase):
     return set(filter(
@@ -148,25 +169,38 @@ def get_last_phrase_recursive(pron, puncts):
     if len(puncts) == 0:
         return ""
 
+    # last end of sentence before the specific pronoun
     last_punct_idx = get_last_punct_idx(pron[0], puncts)
+
+    # last phrase before the end of sentence
     phrase = get_last_phrase(last_punct_idx, puncts)
 
+    # words with first letter capitalized
     capital_words = get_capital_words_rev(phrase)
+
+    # words with tag NN*
     nouns = get_nouns_from_phrase(phrase)
+
+    # words with dependence as "nsubj" or "conj"
     dep_words = get_words_dependence(phrase)
+
+    #first_word_not_noun = False
+    #if capital_words[0][0] == 0 and (capital_words[0] not in #nouns or capital_words[0] not in dep_words):
+    #    #print(capital_words)
+    #    first_word_not_noun = False
 
     words = capital_words
     
-    for word in words:
-        score = 1
-        if word in nouns:
-            score += 1
-        if word in dep_words:
-            score += 1
+    # for word in words:
+    #     score = 1
+    #     if word in nouns:
+    #         score += 1
+    #     if word in dep_words:
+    #         score += 1
         
-    print(words, score)
-    if len(words) >= 2:
-        return phrase
+    #print(words, score)
+    if len(words) >= 1:
+        return phrase, words
     else:
         return get_last_phrase_recursive(pron, puncts[:-1])
 
@@ -181,7 +215,14 @@ prons_to_phrase = map_prons_to_last_phrase(nlp_pron, nlp_punct)
 prons_to_phrase
 #%%
 
+def apply_metrics():
+    pass
 
+def proximity(groups):    
+    mean_distance = [sum([noun[0] for noun in group])/len(group) for group in groups]
+    return mean_distance
+
+#%%
 def map_prons_to_nouns(prons, puncts):
     pron_dict = {}
     prouns_phrases = map_prons_to_last_phrase(prons, puncts)
